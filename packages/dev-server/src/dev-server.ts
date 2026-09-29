@@ -229,11 +229,9 @@ export function devServer(options?: DevServerOptions): VitePlugin {
               const requestForApp = rewriteRequestForBase ? rewriteRequestForBase(request) : request
               const response = await app.fetch(requestForApp, env, executionContext)
 
-              /**
-               * If the response is not instance of `Response`, throw it so that it can be handled
-               * by our custom errorHandler and passed through to Vite
-               */
-              if (!(response instanceof Response)) {
+              // Response implementations from other Fetch API runtimes do not share Node.js's
+              // constructor identity, so validate the interface used by the Node.js adapter.
+              if (!isResponse(response)) {
                 throw response
               }
 
@@ -281,6 +279,19 @@ export function devServer(options?: DevServerOptions): VitePlugin {
     handleHotUpdate: options?.handleHotUpdate ?? defaultOptions.handleHotUpdate,
   }
   return plugin
+}
+
+const isResponse = (response: unknown): response is Response => {
+  if (typeof response !== 'object' || response === null) {
+    return false
+  }
+
+  const candidate = response as Partial<Response>
+  return (
+    typeof candidate.status === 'number' &&
+    typeof candidate.headers?.get === 'function' &&
+    (candidate.body === null || typeof candidate.body?.getReader === 'function')
+  )
 }
 
 const getAdapterFromOptions = async (

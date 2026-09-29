@@ -1,3 +1,4 @@
+import { Response as PonyfillResponse } from '@whatwg-node/node-fetch'
 import { Hono } from 'hono'
 import { getRuntimeKey } from 'hono/adapter'
 import { getConnInfo } from '../../src/conninfo'
@@ -58,6 +59,14 @@ app.get('/stream', () => {
   return new Response(stream, {
     headers: { 'Content-Type': 'text/html', 'x-via': 'vite' },
   })
+})
+
+app.get('/ponyfill-response', () => {
+  return new PonyfillResponse('Created', {
+    status: 201,
+    statusText: 'Created',
+    headers: { 'x-response-implementation': 'whatwg-node' },
+  }) as unknown as Response
 })
 
 // @ts-expect-error the response is string
