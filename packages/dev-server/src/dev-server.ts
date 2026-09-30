@@ -227,13 +227,21 @@ export function devServer(options?: DevServerOptions): VitePlugin {
                 },
               }
               const requestForApp = rewriteRequestForBase ? rewriteRequestForBase(request) : request
-              const response = await app.fetch(requestForApp, env, executionContext)
+              const appResponse = await app.fetch(requestForApp, env, executionContext)
 
-              // Response implementations from other Fetch API runtimes do not share Node.js's
-              // constructor identity, so validate the interface used by the Node.js adapter.
-              if (!isResponse(response)) {
-                throw response
+              // Reject invalid return values while accepting compatible Response implementations.
+              if (!hasResponseInterface(appResponse)) {
+                throw appResponse
               }
+
+              const response =
+                appResponse instanceof Response
+                  ? appResponse
+                  : new Response(appResponse.body, {
+                      headers: appResponse.headers,
+                      status: appResponse.status,
+                      statusText: appResponse.statusText,
+                    })
 
               if (
                 options?.injectClientScript !== false &&
@@ -281,16 +289,49 @@ export function devServer(options?: DevServerOptions): VitePlugin {
   return plugin
 }
 
-const isResponse = (response: unknown): response is Response => {
+const hasResponseInterface = (response: unknown): boolean => {
   if (typeof response !== 'object' || response === null) {
     return false
   }
 
-  const candidate = response as Partial<Response>
+  if (!('status' in response) || typeof response.status !== 'number') {
+    return false
+  }
+
+  if (
+    !('headers' in response) ||
+    typeof response.headers !== 'object' ||
+    response.headers === null
+  ) {
+    return false
+  }
+
+  const headers = response.headers
+  if (
+    !('get' in headers) ||
+    typeof headers.get !== 'function' ||
+    !(Symbol.iterator in headers) ||
+    typeof headers[Symbol.iterator] !== 'function'
+  ) {
+    return false
+  }
+
+  if (!('body' in response)) {
+    return false
+  }
+
+  const body = response.body
+  if (body === null) {
+    return true
+  }
+
+  if (typeof body !== 'object') {
+    return false
+  }
+
   return (
-    typeof candidate.status === 'number' &&
-    typeof candidate.headers?.get === 'function' &&
-    (candidate.body === null || typeof candidate.body?.getReader === 'function')
+    ('getReader' in body && typeof body.getReader === 'function') ||
+    (Symbol.asyncIterator in body && typeof body[Symbol.asyncIterator] === 'function')
   )
 }
 

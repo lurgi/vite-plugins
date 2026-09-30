@@ -66,7 +66,7 @@ app.get('/ponyfill-response', () => {
     status: 201,
     statusText: 'Created',
     headers: { 'x-response-implementation': 'whatwg-node' },
-  }) as unknown as Response
+  })
 })
 
 // @ts-expect-error the response is string
